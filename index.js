@@ -190,9 +190,6 @@ ChunkView = (function() {
               if (blockType == null) {
                 id = -1;
               }
-              if ((blockType != null ? blockType.t : void 0) == null) {
-                id = -1;
-              }
               show = false;
               show = id > 0;
               if (!this.superflat && y < 60 && this.showStuff === 'diamondsmoss') {

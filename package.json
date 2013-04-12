@@ -1,6 +1,6 @@
 {
   "name": "minecraft-chunk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "read voxel data from minecraft chunks",
   "main": "index.js",
   "scripts": {},
@@ -11,6 +11,6 @@
     "minecraft-nbt": "0.0.2"
   },
   "dependencies": {
-    "minecraft-blockinfo": "0.0.0"
+    "minecraft-blockinfo": "0.1.0"
   }
 }
