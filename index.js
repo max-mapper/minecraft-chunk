@@ -51,8 +51,9 @@ ChunkView = (function() {
   function ChunkView(options) {
     this.options = options;
     this.getBlockAt = __bind(this.getBlockAt, this);
-    this.getLightAt = __bind(this.getLightAt, this);
+    this.getSectionInfo = __bind(this.getSectionInfo, this);
     this.extractChunk = __bind(this.extractChunk, this);
+    this.extractVoxel = __bind(this.extractVoxel, this);
     this.transNeighbors = __bind(this.transNeighbors, this);
     this.getBlockInfo = __bind(this.getBlockInfo, this);
     this.index = 0;
@@ -87,6 +88,10 @@ ChunkView = (function() {
       this.ymin = options.ymin;
     }
   }
+  
+  ChunkView.prototype.getPosition = function() {
+    return [this.nbt.root.Level.xPos, this.nbt.root.Level.yPos]
+  }
 
   ChunkView.prototype.getBlockAt = function(x, y, z) {
     var blockpos, offset, section, sectionnum, sections, _i, _len, _ref;
@@ -106,32 +111,6 @@ ChunkView = (function() {
       section = sections[_i];
       if (section !== void 0 && section.Y * 1 === sectionnum * 1) {
         return section.Blocks[blockpos];
-      }
-    }
-    return -1;
-  };
-
-  ChunkView.prototype.getLightAt = function(x, y, z) {
-    var offset, section, sectionnum, sections, _i, _len;
-
-    if (this.nbt.root.Level.Sections != null) {
-      sections = this.nbt.root.Level.Sections;
-    } else {
-      sections = this.nbt.root.Sections;
-    }
-    if (!sections) {
-      return -1;
-    }
-    sectionnum = Math.floor(y / 16);
-    offset = ((y % 16) * 256) + (z * 16) + x;
-    for (_i = 0, _len = sections.length; _i < _len; _i++) {
-      section = sections[_i];
-      if (section !== void 0 && section.Y * 1 === sectionnum * 1) {
-        if (offset % 2 === 0) {
-          return section.BlockLight[Math.floor(offset / 2)] & 0x0F;
-        } else {
-          return (section.BlockLight[Math.floor(offset / 2)] >> 4) & 0x0F;
-        }
       }
     }
     return -1;
@@ -162,72 +141,105 @@ ChunkView = (function() {
   };
 
   ChunkView.prototype.extractChunk = function(cb) {
-    var Y, blah, blockType, id, offset, section, sections, show, x, y, z, _i, _j, _k, _l, _len, _ref, _ref1, _ref2, _ref3;
-
     this.textcoords = [];
     this.cubeCount = 0;
     if (this.nbt.root.Level.Sections != null) {
-      sections = this.nbt.root.Level.Sections;
+      var sections = this.nbt.root.Level.Sections;
     } else {
-      sections = this.nbt.root.Sections;
+      var sections = this.nbt.root.Sections;
     }
-    if (!sections) {
-      return;
-    }
-    for (_i = 0, _len = sections.length; _i < _len; _i++) {
-      section = sections[_i];
+    if (!sections) return
+    for (var i = 0, len = sections.length; i < len; i++) {
+      var section = sections[i];
       if (section !== void 0) {
-        Y = section.Y * 1;
-        for (y = _j = _ref = Y * 16, _ref1 = Y * 16 + 15; _ref <= _ref1 ? _j <= _ref1 : _j >= _ref1; y = _ref <= _ref1 ? ++_j : --_j) {
-          for (x = _k = 0, _ref2 = ChunkSizeX - 1; 0 <= _ref2 ? _k <= _ref2 : _k >= _ref2; x = 0 <= _ref2 ? ++_k : --_k) {
-            for (z = _l = 0, _ref3 = ChunkSizeZ - 1; 0 <= _ref3 ? _l <= _ref3 : _l >= _ref3; z = 0 <= _ref3 ? ++_l : --_l) {
+        var Y = section.Y * 1
+        var ymin = Y * 16
+        var xmin = 0
+        var zmin = 0
+        var ymax = Y * 16 + 15
+        var xmax = ChunkSizeX - 1
+        var zmax = ChunkSizeZ - 1
+        var x, y, z, _i, _j, _k, _l, _len, _ref, _ref1, _ref2, _ref3
+        for (y = _j = _ref = ymin, _ref1 = ymax; _ref <= _ref1 ? _j <= _ref1 : _j >= _ref1; y = _ref <= _ref1 ? ++_j : --_j) {
+          for (x = _k = xmin, _ref2 = xmax; 0 <= _ref2 ? _k <= _ref2 : _k >= _ref2; x = 0 <= _ref2 ? ++_k : --_k) {
+            for (z = _l = zmin, _ref3 = zmax; 0 <= _ref3 ? _l <= _ref3 : _l >= _ref3; z = 0 <= _ref3 ? ++_l : --_l) {
               if (y < this.ymin) {
                 continue;
               }
-              offset = ((y % 16) * 256) + (z * 16) + x;
-              id = section.Blocks[offset];
-              blockType = blockInfo['_' + id];
-              if (blockType == null) {
-                id = -1;
-              }
-              show = false;
-              show = id > 0;
-              if (!this.superflat && y < 60 && this.showStuff === 'diamondsmoss') {
-                show = id === 48 || id === 56 || id === 4 || id === 52;
-              } else {
-                if (id !== 0 && id !== -1 && id !== -10) {
-                  show = this.transNeighbors(x, y, z);
-                } else {
-                  show = false;
-                }
-              }
-              if (show) {
-                block = this.getBlockInfo(x, y, z);
-                blockType = block.type;
-                cb(x, y, z, blockType);
-              } else {
-                blah = 1;
-              }
+              this.extractVoxel(section, x, y, z, cb)
             }
           }
         }
       }
     }
   };
+  
+  ChunkView.prototype.extractVoxel = function(section, x, y, z, cb) {
+    var offset = ((y % 16) * 256) + (z * 16) + x;
+    var id = section.Blocks[offset];
+    var blockType = blockInfo.blocks['_' + id];
+    if (blockType == null) {
+      id = -1;
+    }
+    var show = false;
+    show = id > 0;
+    if (!this.superflat && y < 60 && this.showStuff === 'diamondsmoss') {
+      show = id === 48 || id === 56 || id === 4 || id === 52;
+    } else {
+      if (id !== 0 && id !== -1 && id !== -10) {
+        show = this.transNeighbors(x, y, z);
+      } else {
+        show = false;
+      }
+    }
+    if (show) {
+      var block = this.getBlockInfo(x, y, z);
+      if (block.type === 'colored_wool') {
+        var meta = this.getSectionInfo('Data', x, y, z)
+        block.type = block.data[meta]
+      }
+      cb(x, y, z, block);
+    } else {
+      var blah = 1;
+    }
+  }
+  
+  ChunkView.prototype.getSectionInfo = function(info, x, y, z) {
+    var offset, section, sectionnum, sections, _i, _len;
+    if (this.nbt.root.Level.Sections != null) {
+      sections = this.nbt.root.Level.Sections;
+    } else {
+      sections = this.nbt.root.Sections;
+    }
+    if (!sections) return -1;
+    sectionnum = Math.floor(y / 16);
+    offset = ((y % 16) * 256) + (z * 16) + x;
+    for (_i = 0, _len = sections.length; _i < _len; _i++) {
+      section = sections[_i];
+      if (section !== void 0 && section.Y * 1 === sectionnum * 1) {
+        if (offset % 2 === 0) {
+          return section[info][Math.floor(offset / 2)] & 0x0F;
+        } else {
+          return (section[info][Math.floor(offset / 2)] >> 4) & 0x0F;
+        }
+      }
+    }
+    return -1;
+  };
 
   ChunkView.prototype.getBlockInfo = function(x, y, z) {
     var blockID, blockType, id;
 
-    blockType = blockInfo["_-1"];
+    blockType = blockInfo.blocks["_-1"];
     id = this.getBlockAt(x, y, z);
     blockID = "_-1";
     if (id != null) {
       blockID = "_" + id.toString();
     }
-    if (blockInfo[blockID] != null) {
-      return blockInfo[blockID];
+    if (blockInfo.blocks[blockID] != null) {
+      return blockInfo.blocks[blockID];
     } else {
-      return blockInfo["_-1"];
+      return blockInfo.blocks["_-1"];
     }
   };
 
